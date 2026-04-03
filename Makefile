@@ -21,7 +21,7 @@ REGRESS_OPTS = --encoding=UTF8
 # Oracle-specific test files (ora_*) handle Oracle parser compatibility
 # Original tests preserved for PostgreSQL mode
 ORA_REGRESS = ora_init base_plan ora_pg_hint_plan ora_ut-init ora_ut-A ora_ut-S ora_ut-J \
-	ut-L ut-G ut-R ut-fdw ora_ut-W ora_ut-T ut-fini ora_plpgsql hint_table \
+	ut-L ut-G ut-R ut-fdw ora_ut-W ora_ut-T ut-fini ora_plisql hint_table \
 	ora_disable_index query_parser ora_oldextversions
 
 EXTENSION = pg_hint_plan

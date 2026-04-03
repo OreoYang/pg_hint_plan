@@ -1,22 +1,20 @@
 --
--- Scenarios with various PL/pgsql functions
+-- Scenarios with various PL/iSQL functions
 --
+
 SET search_path TO public;
 SET client_min_messages TO log;
 \set SHOW_CONTEXT always
+
 LOAD 'pg_hint_plan';
 SET pg_hint_plan.debug_print TO on;
 SET compute_query_id = on;
 SHOW pg_hint_plan.enable_hint_table;
- pg_hint_plan.enable_hint_table 
---------------------------------
- off
-(1 row)
 
--- Internal handling of hints within plpgsql functions.
--- This forces an exception, manipulating internally plpgsql_recurse_level.
+-- Internal handling of hints within plisql functions.
+-- This forces an exception, manipulating internally plisql_recurse_level.
 create or replace function test_hint_exception(level int)
-returns void language plpgsql as $$
+returns void language plisql as $$
 begin
   level := level + 1;
   raise notice 'Execution of test_hint_exception at level %', level;
@@ -28,8 +26,9 @@ begin
   execute 'select test_hint_exception(' || level || ')';
   exception when others then end;
 $$;
+/
 -- Having a transaction context is essential to mess up with the
--- plpgsql_recurse_level.
+-- plisql_recurse_level.
 begin;
 select set_config('compute_query_id','off', true);
 -- Show plan without hints
@@ -57,11 +56,12 @@ rollback;
 explain (costs false) with test as (select 'y' val)
   select t1.val from test t1, test t2 where t1.val = t2.val;
 drop function test_hint_exception;
+
 -- Test hints with function using transactions internally.
 create table test_hint_tab (a int);
 -- Function called in a nested loop to check for hints.
 create function test_hint_queries(run int, level int) returns void
-language plpgsql as $$
+language plisql as $$
 declare c text;
 begin
   level := level + 1;
@@ -88,12 +88,14 @@ begin
     into c;
   execute 'select test_hint_queries(' || run || ',' || level || ')';
 end; $$;
+/
+
 -- Entry point of this test.  This executes the transaction
 -- commands while calling test_hint_queries in a nested loop.
 -- "mode" can be set to "before" or "after", to control the timing of
 -- the subtransaction commands launched in this procedure.
 create procedure test_hint_transaction(mode text)
-language plpgsql as $$
+language plisql as $$
 declare c text;
 begin
   for i in 0..3 loop
@@ -116,11 +118,12 @@ begin
     end if;
   end loop;
 end; $$;
+/
+
 call test_hint_transaction('before');
 call test_hint_transaction('after');
+
 table test_hint_tab;
 drop procedure test_hint_transaction;
 drop function test_hint_queries;
 drop table test_hint_tab;
-ERROR:  pg_hint_plan: hint syntax error at or near "/*+"
-DETAIL:  Multiple hints are not supported.
