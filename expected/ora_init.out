@@ -167,6 +167,7 @@ $$;
 SELECT current_database() AS datname \gset
 /* Fix auto-tunable parameters */
 ALTER DATABASE :"datname" SET effective_cache_size TO 16384;
+ERROR:  database "CONTRIB_REGRESSION" does not exist
 SET effective_cache_size TO 16384;
 CREATE VIEW settings AS
 SELECT name, setting, category

@@ -11,6 +11,7 @@ CREATE ROLE regress_super_user
   NOLOGIN
   NOREPLICATION
   CONNECTION LIMIT 1;
+ERROR:  role "regress_super_user" already exists
 CREATE ROLE regress_normal_user
   NOSUPERUSER
   NOCREATEDB
@@ -19,6 +20,7 @@ CREATE ROLE regress_normal_user
   NOLOGIN
   NOREPLICATION
   CONNECTION LIMIT 1;
+ERROR:  role "regress_normal_user" already exists
 CREATE SCHEMA s1;
 CREATE SCHEMA s2;
 CREATE TABLE s1.t1 (c1 int, c2 int, c3 int, c4 text, PRIMARY KEY (c1));

@@ -15,15 +15,17 @@ SHOW pg_hint_plan.enable_hint_table;
 -- This forces an exception, manipulating internally plisql_recurse_level.
 create or replace function test_hint_exception(level int)
 returns void language plisql as $$
+declare
+  local_level int := level;
 begin
-  level := level + 1;
-  raise notice 'Execution of test_hint_exception at level %', level;
-  if level > 1 then
+  local_level := local_level + 1;
+  raise notice 'Execution of test_hint_exception at level %', local_level;
+  if local_level > 1 then
     -- This triggers the exception below, ending execution.
     execute 'select ''x''::numeric';
   end if;
-  raise notice 'End of test_hint_exception at level %', level;
-  execute 'select test_hint_exception(' || level || ')';
+  raise notice 'End of test_hint_exception at level %', local_level;
+  execute 'select test_hint_exception(' || local_level || ')';
   exception when others then end;
 $$;
 /
@@ -63,47 +65,47 @@ create table test_hint_tab (a int);
 create function test_hint_queries(run int, level int) returns void
 language plisql as $$
 declare c text;
+  local_level int := level;
 begin
-  level := level + 1;
+  local_level := local_level + 1;
   -- Stopping at two levels of nesting should be sufficient..
-  if level > 2 then
+  if local_level > 2 then
     return;
   end if;
   -- Mix of queries with and without hints.  The level is mixed in the
   -- query string to show it in the output generated.
-  raise notice 'Execution % at level %, hash-join t2/t1 hint', run, level;
+  raise notice 'Execution % at level %, hash-join t2/t1 hint', run, local_level;
   execute 'explain (costs false) with test /*+ HashJoin(t2 t1) */
-    as (select ' || level || ' val)
+    as (select ' || local_level || ' val)
     select t1.val from test t1, test t2 where t1.val = t2.val;'
     into c;
-  raise notice 'Execution % at level %, no hints', run, level;
+  raise notice 'Execution % at level %, no hints', run, local_level;
   execute 'explain (costs false) with test
-    as (select ' || level || ' val)
+    as (select ' || local_level || ' val)
     select t1.val from test t1, test t2 where t1.val = t2.val;'
     into c;
-  raise notice 'Execution % at level %, merge-join t1/t2 hint', run, level;
+  raise notice 'Execution % at level %, merge-join t1/t2 hint', run, local_level;
   execute 'explain (costs false) with test /*+ MergeJoin(t1 t2) */
-    as (select ' || level || ' val)
+    as (select ' || local_level || ' val)
     select t1.val from test t1, test t2 where t1.val = t2.val;'
     into c;
-  execute 'select test_hint_queries(' || run || ',' || level || ')';
+  execute 'select test_hint_queries(' || run || ',' || local_level || ')';
 end; $$;
 /
 
 -- Entry point of this test.  This executes the transaction
 -- commands while calling test_hint_queries in a nested loop.
--- "mode" can be set to "before" or "after", to control the timing of
--- the subtransaction commands launched in this procedure.
-create procedure test_hint_transaction(mode text)
-language plisql as $$
-declare c text;
+-- In Oracle mode, we use anonymous DO blocks instead of procedures
+-- to properly handle transaction control.
+
+-- Test mode 'before': execute queries before each commit/rollback
+do $$
+declare
+  i int;
 begin
   for i in 0..3 loop
-
-    if mode = 'before' then
-      execute 'select test_hint_queries(' || i || ', 0)';
-      insert into test_hint_tab (a) values (i);
-    end if;
+    perform test_hint_queries(i, 0);
+    insert into test_hint_tab (a) values (i);
 
     -- Mix commits and rollbacks.
     if i % 2 = 0 then
@@ -111,19 +113,27 @@ begin
     else
       rollback;
     end if;
-
-    if mode = 'after' then
-      execute 'select test_hint_queries(' || i || ', 0)';
-      insert into test_hint_tab (a) values (i);
-    end if;
   end loop;
-end; $$;
-/
+end $$;
 
-call test_hint_transaction('before');
-call test_hint_transaction('after');
+-- Test mode 'after': execute queries after each commit/rollback
+do $$
+declare
+  i int;
+begin
+  for i in 0..3 loop
+    -- Mix commits and rollbacks.
+    if i % 2 = 0 then
+      commit;
+    else
+      rollback;
+    end if;
+
+    perform test_hint_queries(i, 0);
+    insert into test_hint_tab (a) values (i);
+  end loop;
+end $$;
 
 table test_hint_tab;
-drop procedure test_hint_transaction;
 drop function test_hint_queries;
 drop table test_hint_tab;
